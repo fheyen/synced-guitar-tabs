@@ -1,9 +1,15 @@
 <script>
   // @ts-nocheck
-
   import { onDestroy, onMount } from 'svelte';
+  import '@fortawesome/fontawesome-free/css/all.min.css';
 
-  const ws = new WebSocket('ws://localhost:8080');
+  const PORT = 8080;
+
+  const host = window.location.hostname;
+  const url = `ws://${host}:${PORT}`;
+
+  console.log(`connecting to ${url}`);
+  const ws = new WebSocket(url);
 
   let wrapper;
   let main;
@@ -11,6 +17,7 @@
   let connected = false;
   let countInActive = false;
   let loopActive = false;
+  let playbackSpeed = 1;
   let fileBuffer;
   $: if (fileBuffer) {
     // load file when it updates
@@ -32,9 +39,9 @@
         fileBuffer = await msg.data.arrayBuffer();
       } else {
         const text = await msg.data.text();
-        console.log(text);
-        console.log(JSON.parse(text));
+        // console.log(text);
         const m = JSON.parse(text);
+        console.log('got command', m);
         // perform actions
         if (m.type === 'playpause') {
           api.playPause();
@@ -47,10 +54,12 @@
           } else {
             api.countInVolume = 0;
           }
-          // api.isLooping = m.value;
         } else if (m.type === 'loopActive') {
           loopActive = m.value;
           api.isLooping = m.value;
+        } else if (m.type === 'speed') {
+          playbackSpeed = +m.value;
+          api.playbackSpeed = +m.value;
         }
       }
     };
@@ -180,10 +189,6 @@
       });
     };
 
-    // wrapper.querySelector('.at-controls .at-print').onclick = () => {
-    //   api.print();
-    // };
-
     const zoom = wrapper.querySelector('.at-controls .at-zoom select');
     zoom.onchange = () => {
       const zoomLevel = parseInt(zoom.value) / 100;
@@ -303,10 +308,10 @@
       <div class="at-controls-left">
         <i
           class="fas fa-signal"
-          style="color: {connected ? 'green' : 'crimson'}"
-          title="{connected ? 'connected' : 'not connected'}"
+          style="color: {connected ? 'green' : 'inherit'}"
+          title="{connected ? `connected to ${url}` : 'not connected'}"
         ></i>
-        <!-- svelte-ignore a11y-missing-attribute a11y-no-static-element-interactions -->
+        <!-- svelte-ignore a11y-missing-attribute a11y-no-static-element-interactions a11y-click-events-have-key-events -->
         <a
           class="btn"
           title="open a file"
@@ -322,11 +327,11 @@
           />
         </a>
         <!-- svelte-ignore a11y-missing-attribute -->
-        <a class="btn at-player-stop disabled">
+        <a class="btn at-player-stop disabled" title="stop and back to start">
           <i class="fas fa-step-backward"></i>
         </a>
         <!-- svelte-ignore a11y-missing-attribute -->
-        <a class="btn at-player-play-pause disabled">
+        <a class="btn at-player-play-pause disabled" title="play/pause">
           <i class="fas fa-play"></i>
         </a>
         <span class="at-player-progress">0%</span>
@@ -338,22 +343,46 @@
       </div>
       <div class="at-controls-right">
         <!-- svelte-ignore a11y-missing-attribute -->
-        <a class="btn toggle at-count-in {countInActive ? 'active' : ''}">
+        <a
+          class="btn toggle at-count-in {countInActive ? 'active' : ''}"
+          title="count-in"
+        >
           <i class="fas fa-hourglass-half"></i>
         </a>
         <!-- svelte-ignore a11y-missing-attribute -->
-        <a class="btn at-metronome">
+        <a class="btn at-metronome" title="metronome">
           <i class="fas fa-edit"></i>
         </a>
         <!-- svelte-ignore a11y-missing-attribute -->
-        <a class="btn at-loop {loopActive ? 'active' : ''}">
+        <a class="btn at-loop {loopActive ? 'active' : ''}" title="loop">
           <i class="fas fa-retweet"></i>
         </a>
         <!-- svelte-ignore a11y-missing-attribute -->
         <!-- <a class="btn at-print">
           <i class="fas fa-print"></i>
         </a> -->
-        <div class="at-zoom">
+        <div class="at-speed" title="playback speed">
+          <i class="fas fa-gauge-simple"></i>
+          <select
+            bind:value="{playbackSpeed}"
+            on:change="{(evt) =>
+              sendMsg({ type: 'speed', value: +evt.target.value })}"
+          >
+            <option value="0.50">50%</option>
+            <option value="0.60">60%</option>
+            <option value="0.70">70%</option>
+            <option value="0.75">75%</option>
+            <option value="0.80">80%</option>
+            <option value="0.85">85%</option>
+            <option value="0.90">90%</option>
+            <option value="0.95">95%</option>
+            <option value="1">100%</option>
+            <option value="1.10">110%</option>
+            <option value="1.10">110%</option>
+            <option value="1.25">125%</option>
+          </select>
+        </div>
+        <div class="at-zoom" title="zoom">
           <i class="fas fa-search"></i>
           <select>
             <option value="25">25%</option>
@@ -367,7 +396,7 @@
             <option value="200">200%</option>
           </select>
         </div>
-        <div class="at-layout">
+        <div class="at-layout" title="layout">
           <select>
             <option value="horizontal">Horizontal</option>
             <option value="page" selected>Page</option>
