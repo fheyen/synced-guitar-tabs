@@ -21,6 +21,8 @@
   let countInActive = false;
   let loopActive = false;
   let playbackSpeed = 1;
+  let zooms = [25, 50, 75, 90, 100, 110, 125, 150, 200];
+  let currentZoom = 100;
   let fileBuffer;
   $: if (fileBuffer) {
     // load file when it updates
@@ -52,18 +54,13 @@
     } else if (m.type === 'selectedBarRange') {
       // see https://github.com/CoderLine/alphaTab/discussions/1385
       const [start, end] = m.value.sort();
+      lastSelectedBar = start;
       const masterBar1 = api.score.masterBars[start];
       const masterBar2 = api.score.masterBars[end];
       const startTick = api.tickCache.getMasterBarStart(masterBar1);
-      // const endTick = api.tickCache.getMasterBarStart(masterBar2);
-
       // get last beat of bar2
       const endTick =
         api.tickCache.getMasterBarStart(masterBar2.nextMasterBar) - 1;
-
-      // const lastBeat = masterBar2
-      // const endTick = api.tickCache.getBeatStart(beat);
-
       // wait for alphaTab to perform the click and then overwrite...
       setTimeout(() => {
         api.tickPosition = startTick;
@@ -120,6 +117,13 @@
     console.log(evt.target.files[0]);
     const buffer = await evt.target.files[0].arrayBuffer();
     ws.send(buffer);
+  };
+
+  const handleZoom = (value) => {
+    const zoomLevel = parseInt(value) / 100;
+    api.settings.display.scale = zoomLevel;
+    api.updateSettings();
+    api.render();
   };
 
   const initTab = () => {
@@ -230,10 +234,7 @@
 
     const zoom = wrapper.querySelector('.at-controls .at-zoom select');
     zoom.onchange = () => {
-      const zoomLevel = parseInt(zoom.value) / 100;
-      api.settings.display.scale = zoomLevel;
-      api.updateSettings();
-      api.render();
+      handleZoom(zoom.value);
     };
 
     const layout = wrapper.querySelector('.at-controls .at-layout select');
@@ -346,13 +347,56 @@
     ws.close();
   });
 
+  // keyboard shortcuts
   const handleKeyPress = (evt) => {
-    console.log(evt.key);
+    // console.log(evt.key);
+    if (evt.key === ' ') {
+      if (evt.ctrlKey) {
+        sendMsg({ type: 'stop' });
+      } else {
+        sendMsg({ type: 'playpause' });
+      }
+    } else if (evt.key === 'l') {
+      sendMsg({ type: 'loopActive', value: !loopActive });
+    } else if (evt.key === 'c') {
+      sendMsg({ type: 'countInActive', value: !countInActive });
+      // send receive
+    } else if (evt.key === 's') {
+      enableSend = !enableSend;
+    } else if (evt.key === 'r') {
+      enableReceive = !enableReceive;
+      // zoom
+    } else if (evt.key === '+') {
+      const currentZoomIndex = zooms.indexOf(currentZoom);
+      currentZoom = zooms[Math.min(currentZoomIndex + 1, zooms.length - 1)];
+      handleZoom(currentZoom);
+    } else if (evt.key === '-') {
+      const currentZoomIndex = zooms.indexOf(currentZoom);
+      currentZoom = zooms[Math.max(currentZoomIndex - 1, 0)];
+      handleZoom(currentZoom);
+    } else if (evt.key === 'ArrowLeft') {
+      if (lastSelectedBar > 0) {
+        lastSelectedBar = lastSelectedBar - 1;
+        sendMsg({
+          type: 'selectedBarRange',
+          value: [lastSelectedBar, lastSelectedBar],
+        });
+      }
+    } else if (evt.key === 'ArrowRight') {
+      if (lastSelectedBar < api.score.masterBars.length - 1) {
+        lastSelectedBar = lastSelectedBar + 1;
+        sendMsg({
+          type: 'selectedBarRange',
+          value: [lastSelectedBar, lastSelectedBar],
+        });
+      }
+    }
   };
+  document.body.addEventListener('keyup', handleKeyPress);
 </script>
 
 <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-<main on:keydown="{handleKeyPress}">
+<main>
   <div class="at-wrap">
     <div class="at-overlay">
       <div class="at-overlay-content">Music sheet is loading</div>
@@ -376,14 +420,14 @@
         ></i>
         <a
           class="btn toggle {enableSend ? 'active' : ''}"
-          title="enable/disable sending interactions"
+          title="enable/disable sending interactions (s)"
           on:click="{() => (enableSend = !enableSend)}"
         >
           <i class="fas fa-upload"></i>
         </a>
         <a
           class="btn toggle {enableReceive ? 'active' : ''}"
-          title="enable/disable receiving interactions"
+          title="enable/disable receiving interactions (r)"
           on:click="{() => (enableReceive = !enableReceive)}"
         >
           <i class="fas fa-download"></i>
@@ -402,10 +446,13 @@
             accept=".gp,.gp3, .gp5"
           />
         </a>
-        <a class="btn at-player-stop disabled" title="stop and back to start">
+        <a
+          class="btn at-player-stop disabled"
+          title="stop and back to start (CTRL + space)"
+        >
           <i class="fas fa-step-backward"></i>
         </a>
-        <a class="btn at-player-play-pause disabled" title="play/pause">
+        <a class="btn at-player-play-pause disabled" title="play/pause (space)">
           <i class="fas fa-play"></i>
         </a>
         <span class="at-player-progress">0%</span>
@@ -418,14 +465,14 @@
       <div class="at-controls-right">
         <a
           class="btn toggle at-count-in {countInActive ? 'active' : ''}"
-          title="count-in"
+          title="count-in (c)"
         >
           <i class="fas fa-hourglass-half"></i>
         </a>
         <a class="btn at-metronome" title="metronome">
           <i class="fas fa-edit"></i>
         </a>
-        <a class="btn at-loop {loopActive ? 'active' : ''}" title="loop">
+        <a class="btn at-loop {loopActive ? 'active' : ''}" title="loop (l)">
           <i class="fas fa-retweet"></i>
         </a>
         <div class="at-speed" title="playback speed">
@@ -449,24 +496,18 @@
             <option value="{1.25}">125%</option>
           </select>
         </div>
-        <div class="at-zoom" title="zoom">
+        <div class="at-zoom" title="zoom (+ or -)">
           <i class="fas fa-search"></i>
-          <select>
-            <option value="25">25%</option>
-            <option value="50">50%</option>
-            <option value="75">75%</option>
-            <option value="90">90%</option>
-            <option value="100" selected>100%</option>
-            <option value="110">110%</option>
-            <option value="125">125%</option>
-            <option value="150">150%</option>
-            <option value="200">200%</option>
+          <select bind:value="{currentZoom}">
+            {#each zooms as value}
+              <option {value}>{value}%</option>
+            {/each}
           </select>
         </div>
         <div class="at-layout" title="layout">
           <select>
-            <option value="horizontal">Horizontal</option>
-            <option value="page" selected>Page</option>
+            <option value="horizontal">horizontal</option>
+            <option value="page" selected>page</option>
           </select>
         </div>
       </div>
@@ -489,5 +530,9 @@
   main {
     width: 100vw;
     height: 100vh;
+  }
+
+  select {
+    margin-left: 3px;
   }
 </style>

@@ -48,10 +48,24 @@ npm start
 - Play together!
 - Some settings are not synced, such as the instrument shown, metronome, zoom, page layout
 
+## Keyboard Shortcuts
+
+- `space` play/pause
+- `CTRL + space` stop and go to beginning
+- `l` toogle looping
+- `c` toogle count-in
+- `s` toogle sending
+- `r` toogle receiving
+- `+` zoom in
+- `-` zoom out
+- `ArrowLeft` previous bar
+- `ArrowRight` next bar
+
 ## TODO
 
 - [x] use serve to host websocket server and app on same hostname
 - [x] allow user to temporarily disable sending and/or recieving
+- [x] keyboard shortcuts
 - [x] sync file
   - https://www.alphatab.net/docs/reference/api/load/
 - [x] sync play/pause
