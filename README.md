@@ -57,10 +57,8 @@ npm start
 - [x] sync play/pause
 - [x] sync loop and count-in
 - [x] sync speed
-- [ ] sync jumping
-  - https://github.com/CoderLine/alphaTab/discussions/1385
-- [ ] sync selection
-  - https://www.alphatab.net/docs/reference/api/playbackrangechanged/
+- [x] sync jumping
+- [x] sync selection
 - [ ] allow muting each instrument
   - [ ] https://www.alphatab.net/docs/reference/api/changetrackmute/
 - [ ] allow soloing each instrument

@@ -27,6 +27,8 @@
     api.load(fileBuffer);
   }
 
+  let lastSelectedBar;
+
   async function handleAction(m) {
     console.log('got command', m);
     // perform actions
@@ -47,6 +49,30 @@
     } else if (m.type === 'speed') {
       playbackSpeed = +m.value;
       api.playbackSpeed = +m.value;
+    } else if (m.type === 'selectedBarRange') {
+      // see https://github.com/CoderLine/alphaTab/discussions/1385
+      const [start, end] = m.value.sort();
+      const masterBar1 = api.score.masterBars[start];
+      const masterBar2 = api.score.masterBars[end];
+      const startTick = api.tickCache.getMasterBarStart(masterBar1);
+      // const endTick = api.tickCache.getMasterBarStart(masterBar2);
+
+      // get last beat of bar2
+      const endTick =
+        api.tickCache.getMasterBarStart(masterBar2.nextMasterBar) - 1;
+
+      // const lastBeat = masterBar2
+      // const endTick = api.tickCache.getBeatStart(beat);
+
+      // wait for alphaTab to perform the click and then overwrite...
+      setTimeout(() => {
+        api.tickPosition = startTick;
+        if (start !== end) {
+          api.playbackRange = { startTick, endTick };
+        } else {
+          api.playbackRange = null;
+        }
+      }, 500);
     }
   }
 
@@ -291,18 +317,23 @@
         formatDuration(e.currentTime) + ' / ' + formatDuration(e.endTime);
     });
 
-    // TODO: sync selection
-    api.playbackRangeChanged.on((args) => {
-      // console.log(args);
-      // if (args.playbackRange) {
-      //     highlightRangeInProgressBar(args.playbackRange.startTick, args.playbackRange.endTick);
-    });
+    // api.playbackRangeChanged.on((args) => {
+    //   // console.log(args);
+    //   // if (args.playbackRange) {
+    //   //     highlightRangeInProgressBar(args.playbackRange.startTick, args.playbackRange.endTick);
+    // });
 
-    // TODO: sync clicks on bars
     api.beatMouseDown.on((beat) => {
       const bar = beat.voice.bar;
-      console.log({ beat, bar, barIndex: bar.index });
-      sendMsg({ type: 'selectedBar', value: bar.index });
+      lastSelectedBar = bar.index;
+    });
+
+    api.beatMouseUp.on((beat) => {
+      const bar = beat.voice.bar;
+      sendMsg({
+        type: 'selectedBarRange',
+        value: [lastSelectedBar, bar.index],
+      });
     });
   };
 
