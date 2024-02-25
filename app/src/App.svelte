@@ -11,6 +11,9 @@
   console.log(`connecting to ${url}`);
   const ws = new WebSocket(url);
 
+  let enableSend = true;
+  let enableReceive = true;
+
   let wrapper;
   let main;
   let api;
@@ -24,57 +27,67 @@
     api.load(fileBuffer);
   }
 
-  // Browser WebSockets have slightly different syntax than `ws`.
-  // Instead of EventEmitter syntax `on('open')`, you assign a callback
-  // to the `onopen` property.
+  async function handleAction(m) {
+    console.log('got command', m);
+    // perform actions
+    if (m.type === 'playpause') {
+      api.playPause();
+    } else if (m.type === 'stop') {
+      api.stop();
+    } else if (m.type === 'countInActive') {
+      countInActive = m.value;
+      if (countInActive) {
+        api.countInVolume = 1;
+      } else {
+        api.countInVolume = 0;
+      }
+    } else if (m.type === 'loopActive') {
+      loopActive = m.value;
+      api.isLooping = m.value;
+    } else if (m.type === 'speed') {
+      playbackSpeed = +m.value;
+      api.playbackSpeed = +m.value;
+    }
+  }
+
   const initWebSocket = () => {
     ws.onopen = () => {
       connected = true;
     };
-
     ws.onmessage = async (msg) => {
-      console.log('got message', msg);
-      // is it a file buffer?
-      if (msg.data.size > 1000) {
-        fileBuffer = await msg.data.arrayBuffer();
-      } else {
-        const text = await msg.data.text();
-        // console.log(text);
-        const m = JSON.parse(text);
-        console.log('got command', m);
-        // perform actions
-        if (m.type === 'playpause') {
-          api.playPause();
-        } else if (m.type === 'stop') {
-          api.stop();
-        } else if (m.type === 'countInActive') {
-          countInActive = m.value;
-          if (countInActive) {
-            api.countInVolume = 1;
-          } else {
-            api.countInVolume = 0;
-          }
-        } else if (m.type === 'loopActive') {
-          loopActive = m.value;
-          api.isLooping = m.value;
-        } else if (m.type === 'speed') {
-          playbackSpeed = +m.value;
-          api.playbackSpeed = +m.value;
+      if (enableReceive) {
+        console.log('got message', msg);
+        // is it a file buffer?
+        if (msg.data.size > 1000) {
+          fileBuffer = await msg.data.arrayBuffer();
+        } else {
+          const text = await msg.data.text();
+          const m = JSON.parse(text);
+          handleAction(m);
         }
+      } else {
+        console.log('receiving disabled');
       }
     };
-
     ws.onclose = () => {
       console.warn('connection closed');
       connected = false;
     };
-
     console.log(ws);
   };
 
   const sendMsg = (msg) => {
-    console.log('sending mesage', msg);
-    ws.send(JSON.stringify(msg));
+    if (enableSend) {
+      console.log('sending mesage', msg);
+      const msgString = JSON.stringify(msg);
+      ws.send(msgString);
+    } else {
+      console.log('sending disabled');
+    }
+    if (!enableSend || !enableReceive) {
+      // still want to perform action locally
+      handleAction(msg);
+    }
   };
 
   const handleFileInput = async (evt) => {
@@ -277,6 +290,20 @@
       songPosition.innerText =
         formatDuration(e.currentTime) + ' / ' + formatDuration(e.endTime);
     });
+
+    // TODO: sync selection
+    api.playbackRangeChanged.on((args) => {
+      // console.log(args);
+      // if (args.playbackRange) {
+      //     highlightRangeInProgressBar(args.playbackRange.startTick, args.playbackRange.endTick);
+    });
+
+    // TODO: sync clicks on bars
+    api.beatMouseDown.on((beat) => {
+      const bar = beat.voice.bar;
+      console.log({ beat, bar, barIndex: bar.index });
+      sendMsg({ type: 'selectedBar', value: bar.index });
+    });
   };
 
   onMount(() => {
@@ -287,9 +314,14 @@
   onDestroy(() => {
     ws.close();
   });
+
+  const handleKeyPress = (evt) => {
+    console.log(evt.key);
+  };
 </script>
 
-<main>
+<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+<main on:keydown="{handleKeyPress}">
   <div class="at-wrap">
     <div class="at-overlay">
       <div class="at-overlay-content">Music sheet is loading</div>
@@ -311,7 +343,20 @@
           style="color: {connected ? 'green' : 'inherit'}"
           title="{connected ? `connected to ${url}` : 'not connected'}"
         ></i>
-        <!-- svelte-ignore a11y-missing-attribute a11y-no-static-element-interactions a11y-click-events-have-key-events -->
+        <a
+          class="btn toggle {enableSend ? 'active' : ''}"
+          title="enable/disable sending interactions"
+          on:click="{() => (enableSend = !enableSend)}"
+        >
+          <i class="fas fa-upload"></i>
+        </a>
+        <a
+          class="btn toggle {enableReceive ? 'active' : ''}"
+          title="enable/disable receiving interactions"
+          on:click="{() => (enableReceive = !enableReceive)}"
+        >
+          <i class="fas fa-download"></i>
+        </a>
         <a
           class="btn"
           title="open a file"
@@ -326,11 +371,9 @@
             accept=".gp,.gp3, .gp5"
           />
         </a>
-        <!-- svelte-ignore a11y-missing-attribute -->
         <a class="btn at-player-stop disabled" title="stop and back to start">
           <i class="fas fa-step-backward"></i>
         </a>
-        <!-- svelte-ignore a11y-missing-attribute -->
         <a class="btn at-player-play-pause disabled" title="play/pause">
           <i class="fas fa-play"></i>
         </a>
@@ -342,25 +385,18 @@
         <div class="at-song-position">00:00 / 00:00</div>
       </div>
       <div class="at-controls-right">
-        <!-- svelte-ignore a11y-missing-attribute -->
         <a
           class="btn toggle at-count-in {countInActive ? 'active' : ''}"
           title="count-in"
         >
           <i class="fas fa-hourglass-half"></i>
         </a>
-        <!-- svelte-ignore a11y-missing-attribute -->
         <a class="btn at-metronome" title="metronome">
           <i class="fas fa-edit"></i>
         </a>
-        <!-- svelte-ignore a11y-missing-attribute -->
         <a class="btn at-loop {loopActive ? 'active' : ''}" title="loop">
           <i class="fas fa-retweet"></i>
         </a>
-        <!-- svelte-ignore a11y-missing-attribute -->
-        <!-- <a class="btn at-print">
-          <i class="fas fa-print"></i>
-        </a> -->
         <div class="at-speed" title="playback speed">
           <i class="fas fa-gauge-simple"></i>
           <select
@@ -368,18 +404,18 @@
             on:change="{(evt) =>
               sendMsg({ type: 'speed', value: +evt.target.value })}"
           >
-            <option value="0.50">50%</option>
-            <option value="0.60">60%</option>
-            <option value="0.70">70%</option>
-            <option value="0.75">75%</option>
-            <option value="0.80">80%</option>
-            <option value="0.85">85%</option>
-            <option value="0.90">90%</option>
-            <option value="0.95">95%</option>
-            <option value="1">100%</option>
-            <option value="1.10">110%</option>
-            <option value="1.10">110%</option>
-            <option value="1.25">125%</option>
+            <option value="{0.5}">50%</option>
+            <option value="{0.6}">60%</option>
+            <option value="{0.7}">70%</option>
+            <option value="{0.75}">75%</option>
+            <option value="{0.8}">80%</option>
+            <option value="{0.85}">85%</option>
+            <option value="{0.9}">90%</option>
+            <option value="{0.95}">95%</option>
+            <option value="{1.0}">100%</option>
+            <option value="{1.1}">110%</option>
+            <option value="{1.1}">110%</option>
+            <option value="{1.25}">125%</option>
           </select>
         </div>
         <div class="at-zoom" title="zoom">

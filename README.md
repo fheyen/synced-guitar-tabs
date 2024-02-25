@@ -1,6 +1,9 @@
 # synced-guitar-tabs
 
-https://www.alphatab.net/docs/reference/api
+A simple synchronized guitar tab viewer, that allows multiple people to see the same song and coordinate playing it.
+You need to run a small server locally for WebSockets to work, then each user connects to the web app.
+
+Build using [alphaTab](https://www.alphatab.net/).
 
 ## Setup
 
@@ -47,18 +50,21 @@ npm start
 
 ## TODO
 
+- [x] use serve to host websocket server and app on same hostname
+- [x] allow user to temporarily disable sending and/or recieving
 - [x] sync file
   - https://www.alphatab.net/docs/reference/api/load/
 - [x] sync play/pause
 - [x] sync loop and count-in
 - [x] sync speed
-  - https://www.alphatab.net/docs/reference/api/playbackspeed/
 - [ ] sync jumping
+  - https://github.com/CoderLine/alphaTab/discussions/1385
 - [ ] sync selection
   - https://www.alphatab.net/docs/reference/api/playbackrangechanged/
-- [ ] allow user to temporarily disable sending
-- [ ] allow user to temporarily disable recieving
-- ~~allow to set host and port~~
-  - [x] use serve to host websocket server and app on same hostname
 - [ ] allow muting each instrument
+  - [ ] https://www.alphatab.net/docs/reference/api/changetrackmute/
+- [ ] allow soloing each instrument
+  - [ ] https://www.alphatab.net/docs/reference/api/changetracksolo/
+- [ ] allow setting volume of each instrument
+  - [ ] https://www.alphatab.net/docs/reference/api/changetrackvolume/
 - [ ] allow choosing Tab/ScoreTab/Score
